@@ -1,45 +1,47 @@
 # Yield Claw
 
-Bloomberg for onchain yield allocation. Yield Claw is a Flask-based dashboard that aggregates DeFi lending rates from DefiLlama's public API, normalizes them into a structured opportunity schema, and scores them by risk-adjusted return to surface the best stablecoin yield routes for treasury management.
+Risk-adjusted stablecoin yield dashboard with normalized opportunity scoring.
 
 ## How to Run
 
+See **START.md** for full instructions.
+
 ```bash
-pip install -r requirements.txt
+cd yield-claw
+pip3 install -r requirements.txt
 python3 app.py
+# → open http://localhost:5001
 ```
 
-Then open `http://localhost:5001` in your browser.
+## What Phase 2 Does
 
-## Current Scope (Phase 1)
-
-- **Flask dashboard** with auto-refresh every 60 seconds
-- **DefiLlama API** as the sole data source (free, no auth required)
-- **Normalized opportunity objects** — all protocol data is transformed to a standard schema before reaching the UI
-- **6-axis scoring model** for risk-adjusted yield comparison
-- **77 passing tests** covering schema validation, scoring logic, and data client behavior
-
-## Data Source
-
-DefiLlama API (`https://api.llama.fi/lendings`) — no API key required.
+- Live data from DefiLlama, Morpho Blue, Kamino (Solana)
+- Instrument-type scoring (LENDING / VAULT / LST / FIXED_TERM)
+- 8-field opportunity schema with curator/risk/sustainability data
+- Multi-source pooling and deduplication
+- 139 tests passing
 
 ## What Phase 1 Does NOT Do
 
-- No trade execution or wallet integration
-- No Morpho Blue support
-- No Pendle PT/SY mechanics
-- No auth, database, or persistence layer
+- No execution or capital movement
+- No Morpho, Kamino, Solana (Phase 2)
+- No Pendle PT (Phase 3)
 
-These are Phase 2+.
-
-## Testing
+## Running Tests
 
 ```bash
-pytest
+python3 -m pytest -q
 ```
 
-## Screenshot
+## Versions
 
-![Dashboard](./screenshots/dashboard.png)
+| Tag | Description |
+|-----|-------------|
+| v1 | Aave only, 77 tests |
+| v2 | + Morpho Blue, Kamino Solana, instrument types, 139 tests |
 
-> Add a screenshot to `screenshots/dashboard.png` to see it here.
+## Data Sources
+
+- DefiLlama (free, no auth)
+- Morpho API (free, no auth)
+- Kamino Finance API (free, no auth)
