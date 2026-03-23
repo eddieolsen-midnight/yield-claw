@@ -2,29 +2,64 @@
 
 You are building **Yield Claw** — a yield intelligence dashboard for Eddie's treasury management.
 
-## Rules
+## Hard Rules (Phase 1 Freeze)
 
-1. **Normalize ALL data to the opportunity object schema** before adding to UI. No raw API responses in the frontend.
-2. **Protocol-native data > aggregator data.** DefiLlama is L1, protocol APIs are L2.
-3. **Never show APY without also showing `reward_mix` and `source_confidence`.**
-4. **Compounding logic: threshold-based only, never time-based.**
-5. **Pendle positions: label as "PT implied yield", NOT "fixed yield".**
-6. **Morpho vaults: treat as ERC-4626 allocator structures, NOT plain lending.**
-7. **Tests required before every commit.**
-8. **No feature creep: finish Aave card before starting Morpho.**
-9. **Build order: data schema → Flask endpoint → Aave card → Morpho → Pendle.**
+1. **Normalize ALL data to the opportunity object schema before adding to UI.** No raw API responses in templates or API responses.
+2. **No raw API objects in templates.** All data must pass through the normalization layer first.
+3. **Tests required for schema/scoring/data clients before every commit.** Do not skip tests.
+4. **No execution layer.** No wallet integration, no transaction signing, no on-chain writes.
+5. **No Morpho or Pendle.** Phase 1 scope is DefiLlama + Aave only.
+6. **No auth or database.** Unless explicitly approved by Winston.
+7. **Phase 1 is frozen.** Do not add new features. Focus is cleanup, documentation, and push.
 
-## Project Brief
+## Scoring Model
 
-See `BRIEF FOR_WAYNE.md` in the parent directory for the full spec.
+6 sub-scores → weighted composite:
+- `apy_score` — raw yield strength
+- `stability_score` — TVL and protocol age
+- `liquidity_score` — 24h volume and spread
+- `risk_score` — audit status and hack history
+- `complexity_score` — token mechanics and lockup
+- `implied_rewards_score` — native token incentives
 
-## Quick Ref
+## Opportunity Schema
 
-- Dashboard: Flask + HTML/JS, auto-refresh 60s
-- Primary data: DefiLlama API (free, no auth)
-- Scoring: 6 sub-scores → weighted composite
-- Opportunity schema: see BRIEF_FOR_WAYNE.md
+```
+{
+  "protocol": str,
+  "symbol": str,
+  "apy": float,
+  "apy_base": float,
+  "apy_reward": float,
+  "reward_mix": float,        # 0.0 = pure base, 1.0 = pure reward
+  "source_confidence": float,  # 0.0–1.0
+  "tvls": dict,
+  "mu": float,
+  "sigma": float,
+  "count": int,
+  "legnth": int,
+  "apy_potential": float,
+  "stablecoin": bool,
+  "rew_token": str | None,
+  "rew_token_price": float,
+  "total_borrow": float,
+  "total_supply": float,
+  "borrow_only": bool,
+}
+```
+
+## Build Order
+
+1. Data schema
+2. Flask endpoint
+3. Aave card
+4. Morpho (Phase 2)
+5. Pendle (Phase 3)
 
 ## When Done
 
 Run: `openclaw system event --text "Yield Claw: [brief summary of what was built]" --mode now`
+
+## Next Step
+
+Phase 2 planning — not feature creep.
