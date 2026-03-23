@@ -6,6 +6,7 @@ Higher = better opportunity (safer + more yield per unit risk).
 """
 
 import math
+from typing import Optional
 from models.opportunity import RewardMix, ScoreBreakdown, Opportunity, score_to_risk_tier
 
 
@@ -65,6 +66,7 @@ CHAIN_SCORES = {
     "arbitrum":   8.5,
     "optimism":   8.5,
     "base":       8.0,
+    "solana":     8.5,   # battle-tested, high uptime, strong validator set
     "avalanche":  7.5,
     "bnb":        7.0,
     "gnosis":     7.5,
@@ -205,6 +207,15 @@ def build_opportunity(
     url: str,
     risk_free_rate: float = 0.04,
     extra: dict = None,
+    # Instrument type fields (all optional with defaults)
+    opportunity_type: str = "LENDING",
+    yield_source: str = "supply_interest",
+    liquidity_profile: str = "INSTANT",
+    withdrawal_constraints: str = "None",
+    curator_or_strategy_manager: str = "",
+    reward_token_dependence: float = 0.0,
+    stacking_risk: str = "NONE",
+    maturity_date: Optional[str] = None,
 ) -> Opportunity:
     """
     Factory: takes raw normalized fields, runs scoring, returns a complete Opportunity.
@@ -245,4 +256,13 @@ def build_opportunity(
         score_breakdown=breakdown,
         risk_tier=score_to_risk_tier(breakdown.composite),
         extra=extra or {},
+        # Instrument type fields
+        opportunity_type=opportunity_type,
+        yield_source=yield_source,
+        liquidity_profile=liquidity_profile,
+        withdrawal_constraints=withdrawal_constraints,
+        curator_or_strategy_manager=curator_or_strategy_manager,
+        reward_token_dependence=reward_token_dependence,
+        stacking_risk=stacking_risk,
+        maturity_date=maturity_date,
     )

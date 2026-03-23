@@ -2,10 +2,12 @@
 Yield Claw — Flask backend.
 
 Endpoints:
-  GET /                      → dashboard HTML
-  GET /api/opportunities     → normalized opportunity objects (JSON)
-  GET /api/opportunities/aave → Aave-only subset
-  GET /api/health            → status + cache info
+  GET /                          → dashboard HTML
+  GET /api/opportunities          → normalized opportunity objects (JSON) [DefiLlama + Morpho + Kamino]
+  GET /api/opportunities/aave     → Aave-only subset (DefiLlama)
+  GET /api/opportunities/morpho   → Morpho-only subset
+  GET /api/opportunities/kamino   → Kamino Solana-only subset
+  GET /api/health                → status + cache info
 """
 
 import os
@@ -16,6 +18,8 @@ from flask import Flask, jsonify, render_template, request
 from flask_caching import Cache
 
 from data.defillama import fetch_all_opportunities, fetch_aave_opportunities, fetch_risk_free_rate
+from data.morpho import fetch_morpho_opportunities
+from data.kamino import fetch_kamino_opportunities
 
 # ──────────────────────────────────────────────
 # App setup
@@ -51,20 +55,46 @@ def index():
 @app.route("/api/opportunities")
 @cache.cached(timeout=60)
 def get_opportunities():
+    """
+    Fetch from all integrated sources: DefiLlama (Aave) + Morpho + Kamino.
+    Results are pooled, deduplicated by pool_id, and sorted by score.
+    """
     global _last_fetch_at, _last_error
     try:
         risk_free_rate = fetch_risk_free_rate()
-        opportunities = fetch_all_opportunities(risk_free_rate=risk_free_rate)
+
+        # Fetch from all sources
+        aave_opps     = fetch_all_opportunities(risk_free_rate=risk_free_rate)
+        morpho_opps   = fetch_morpho_opportunities(risk_free_rate=risk_free_rate)
+        kamino_opps   = fetch_kamino_opportunities(risk_free_rate=risk_free_rate)
+
+        # Pool and deduplicate by pool_id
+        seen = set()
+        all_opps = []
+        for opp in aave_opps + morpho_opps + kamino_opps:
+            if opp.pool_id not in seen:
+                seen.add(opp.pool_id)
+                all_opps.append(opp)
+
+        # Sort by composite score descending
+        all_opps.sort(key=lambda o: o.score, reverse=True)
+
         _last_fetch_at = datetime.now(timezone.utc).isoformat()
         _last_error = None
-        log.info(f"Fetched {len(opportunities)} opportunities")
+        log.info(f"Fetched {len(all_opps)} total opportunities "
+                 f"(Aave={len(aave_opps)}, Morpho={len(morpho_opps)}, Kamino={len(kamino_opps)})")
         return jsonify({
             "ok": True,
-            "count": len(opportunities),
+            "count": len(all_opps),
+            "by_source": {
+                "defillama": len(aave_opps),
+                "morpho":    len(morpho_opps),
+                "kamino":     len(kamino_opps),
+            },
             "risk_free_rate": risk_free_rate,
             "risk_free_rate_pct": round(risk_free_rate * 100, 4),
             "fetched_at": _last_fetch_at,
-            "opportunities": [o.to_dict() for o in opportunities],
+            "opportunities": [o.to_dict() for o in all_opps],
         })
     except Exception as e:
         _last_error = str(e)
@@ -96,6 +126,57 @@ def get_aave_opportunities():
     except Exception as e:
         _last_error = str(e)
         log.error(f"Error fetching Aave opportunities: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/opportunities/morpho")
+@cache.cached(timeout=60)
+def get_morpho_opportunities():
+    global _last_fetch_at, _last_error
+    try:
+        chains_param = request.args.get("chains")
+        chains = chains_param.split(",") if chains_param else None
+
+        risk_free_rate = fetch_risk_free_rate()
+        opportunities = fetch_morpho_opportunities(chains=chains, risk_free_rate=risk_free_rate)
+        _last_fetch_at = datetime.now(timezone.utc).isoformat()
+        _last_error = None
+        log.info(f"Fetched {len(opportunities)} Morpho opportunities")
+        return jsonify({
+            "ok": True,
+            "count": len(opportunities),
+            "risk_free_rate": risk_free_rate,
+            "risk_free_rate_pct": round(risk_free_rate * 100, 4),
+            "fetched_at": _last_fetch_at,
+            "opportunities": [o.to_dict() for o in opportunities],
+        })
+    except Exception as e:
+        _last_error = str(e)
+        log.error(f"Error fetching Morpho opportunities: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/opportunities/kamino")
+@cache.cached(timeout=60)
+def get_kamino_opportunities():
+    global _last_fetch_at, _last_error
+    try:
+        risk_free_rate = fetch_risk_free_rate()
+        opportunities = fetch_kamino_opportunities(risk_free_rate=risk_free_rate)
+        _last_fetch_at = datetime.now(timezone.utc).isoformat()
+        _last_error = None
+        log.info(f"Fetched {len(opportunities)} Kamino opportunities")
+        return jsonify({
+            "ok": True,
+            "count": len(opportunities),
+            "risk_free_rate": risk_free_rate,
+            "risk_free_rate_pct": round(risk_free_rate * 100, 4),
+            "fetched_at": _last_fetch_at,
+            "opportunities": [o.to_dict() for o in opportunities],
+        })
+    except Exception as e:
+        _last_error = str(e)
+        log.error(f"Error fetching Kamino opportunities: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 

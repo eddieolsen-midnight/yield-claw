@@ -139,6 +139,16 @@ class Opportunity:
     # Optional fields for protocol-specific data
     extra: dict = field(default_factory=dict)
 
+    # ── Instrument type fields ──────────────────────────────────────────────
+    opportunity_type: str = ""              # "LENDING" | "BORROWING" | "STAKING" | "LIQUIDITY" | "LEVERAGED" | "OPTIONS" | "STRUCTURED"
+    yield_source: str = ""                  # "supply_interest" | "trading_fees" | "token_incentives" | "rebalancing" | "spread" | "options_premium"
+    liquidity_profile: str = ""             # "INSTANT" | "INTERVAL" | "LOCKED" | "THETA_GATED"
+    withdrawal_constraints: str = ""        # Human-readable string, e.g. "None", "7-day timelock"
+    curator_or_strategy_manager: str = ""   # Who manages strategy, e.g. "Morpho Labs", "Aave Governance"
+    reward_token_dependence: float = 0.0     # 0.0–1.0, how much yield depends on reward tokens
+    stacking_risk: str = ""                 # "NONE" | "LOW" | "MEDIUM" | "HIGH"
+    maturity_date: Optional[str] = None     # ISO date string, e.g. "2025-06-30" or None for open-ended
+
     @property
     def score(self) -> float:
         return self.score_breakdown.composite
@@ -169,4 +179,13 @@ class Opportunity:
             "risk_tier": self.risk_tier,
             "fetched_at": self.fetched_at,
             "extra": self.extra,
+            # Instrument type fields
+            "opportunity_type": self.opportunity_type,
+            "yield_source": self.yield_source,
+            "liquidity_profile": self.liquidity_profile,
+            "withdrawal_constraints": self.withdrawal_constraints,
+            "curator_or_strategy_manager": self.curator_or_strategy_manager,
+            "reward_token_dependence": self.reward_token_dependence,
+            "stacking_risk": self.stacking_risk,
+            "maturity_date": self.maturity_date,
         }

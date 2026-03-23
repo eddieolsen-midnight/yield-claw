@@ -9,6 +9,7 @@ All methods return normalized Opportunity objects — never raw API dicts.
 
 import requests
 from typing import Optional
+from models.opportunity import RewardMix
 from models.scoring import build_opportunity
 
 # ──────────────────────────────────────────────
@@ -130,6 +131,13 @@ def _normalize_pool(pool: dict, risk_free_rate: float):
     chain_display = CHAIN_DISPLAY.get(chain, chain.title())
     protocol_display = PROTOCOL_DISPLAY.get(project, project.title())
 
+    # Compute reward_token_dependence from RewardMix
+    _reward_mix = RewardMix(
+        base_apy=apy_base,
+        reward_apy=apy_reward,
+        reward_tokens=reward_token_symbols,
+    )
+
     return build_opportunity(
         pool_id=pool_id,
         protocol=project,
@@ -153,6 +161,15 @@ def _normalize_pool(pool: dict, risk_free_rate: float):
             "exposure": pool.get("exposure"),
             "predictions": pool.get("predictions") or {},
         },
+        # Instrument type fields — DefiLlama Aave pools are lending, supply-interest products
+        opportunity_type="LENDING",
+        yield_source="supply_interest",
+        liquidity_profile="INSTANT",
+        withdrawal_constraints="None",
+        curator_or_strategy_manager="Aave Governance",
+        reward_token_dependence=_reward_mix.reward_fraction,
+        stacking_risk="NONE",
+        maturity_date=None,
     )
 
 

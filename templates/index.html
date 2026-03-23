@@ -110,16 +110,16 @@
       </div>
     </div>
 
+    <!-- Loading / error states (outside cards-grid so innerHTML replacement doesn't destroy them) -->
+    <div id="loading-msg" class="flex items-center justify-center py-20 text-gray-400 text-sm">
+      Fetching yield opportunities…
+    </div>
+    <div id="error-msg" class="hidden text-center py-12 text-red-400 text-sm"></div>
+
     <!-- Cards grid -->
     <div id="cards-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
       <!-- Populated by JS -->
-      <div class="col-span-full flex items-center justify-center py-20 text-gray-400 text-sm" id="loading-msg">
-        Fetching yield opportunities…
-      </div>
     </div>
-
-    <!-- Error state -->
-    <div id="error-msg" class="hidden col-span-full text-center py-12 text-red-400 text-sm"></div>
 
     <!-- Footer -->
     <footer class="mt-12 pt-6 border-t border-gray-100 text-xs text-gray-400 flex justify-between items-center">
@@ -227,8 +227,11 @@
 
     function renderCards(opps) {
       const grid = document.getElementById('cards-grid');
-      document.getElementById('loading-msg').classList.add('hidden');
-      document.getElementById('error-msg').classList.add('hidden');
+      const loadingMsg = document.getElementById('loading-msg');
+      const errorMsg = document.getElementById('error-msg');
+
+      if (loadingMsg) loadingMsg.classList.add('hidden');
+      if (errorMsg) errorMsg.classList.add('hidden');
 
       if (opps.length === 0) {
         grid.innerHTML = `
