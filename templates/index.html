@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Yield Claw</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    body { font-family: 'Inter', sans-serif; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+
+    .risk-low        { background: #d1fae5; color: #065f46; }
+    .risk-medium     { background: #fef3c7; color: #92400e; }
+    .risk-high       { background: #fee2e2; color: #991b1b; }
+    .risk-speculative{ background: #f3e8ff; color: #6b21a8; }
+
+    .score-bar-fill  { transition: width 0.6s ease; }
+
+    .card-hover { transition: transform 0.15s ease, box-shadow 0.15s ease; }
+    .card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+
+    .pulse-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.4; }
+    }
+
+    #countdown-bar {
+      transition: width 1s linear;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl font-bold text-gray-900">Yield Claw</span>
+        <span class="text-xs font-medium bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">Phase 1 · Aave</span>
+      </div>
+      <div class="flex items-center gap-4 text-sm text-gray-500">
+        <!-- Risk-free rate badge -->
+        <div class="flex items-center gap-1.5">
+          <span class="text-gray-400">Risk-free:</span>
+          <span id="risk-free-rate" class="mono font-medium text-gray-700">—</span>
+        </div>
+        <!-- Status dot -->
+        <div class="flex items-center gap-1.5">
+          <div id="status-dot" class="pulse-dot bg-gray-300"></div>
+          <span id="status-text" class="text-xs text-gray-400">Loading…</span>
+        </div>
+        <!-- Refresh countdown -->
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-gray-400">Refresh in</span>
+          <span id="countdown" class="mono text-xs font-medium text-gray-600">60s</span>
+        </div>
+      </div>
+    </div>
+    <!-- Countdown progress bar -->
+    <div class="h-0.5 bg-gray-100">
+      <div id="countdown-bar" class="h-full bg-indigo-400" style="width:100%"></div>
+    </div>
+  </header>
+
+  <!-- Main content -->
+  <main class="max-w-7xl mx-auto px-6 py-8">
+
+    <!-- Filter bar -->
+    <div class="flex items-center gap-3 mb-6 flex-wrap">
+      <span class="text-sm font-medium text-gray-500">Filter:</span>
+      <button onclick="setChainFilter('all')"     id="filter-all"      class="filter-btn active-filter text-xs px-3 py-1.5 rounded-full border font-medium">All chains</button>
+      <button onclick="setChainFilter('Polygon')" id="filter-Polygon"  class="filter-btn text-xs px-3 py-1.5 rounded-full border font-medium text-gray-600 border-gray-200 hover:border-indigo-300">Polygon</button>
+      <button onclick="setChainFilter('Ethereum')" id="filter-Ethereum" class="filter-btn text-xs px-3 py-1.5 rounded-full border font-medium text-gray-600 border-gray-200 hover:border-indigo-300">Ethereum</button>
+      <button onclick="setChainFilter('Arbitrum')" id="filter-Arbitrum" class="filter-btn text-xs px-3 py-1.5 rounded-full border font-medium text-gray-600 border-gray-200 hover:border-indigo-300">Arbitrum</button>
+      <button onclick="setChainFilter('Base')"    id="filter-Base"     class="filter-btn text-xs px-3 py-1.5 rounded-full border font-medium text-gray-600 border-gray-200 hover:border-indigo-300">Base</button>
+
+      <div class="ml-auto flex items-center gap-2">
+        <span class="text-xs text-gray-400">Sort:</span>
+        <select id="sort-select" onchange="applyFiltersAndSort()" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-300">
+          <option value="score">Score</option>
+          <option value="apy">APY</option>
+          <option value="tvl">TVL</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Summary stats -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8" id="stats-row">
+      <div class="bg-white rounded-xl border border-gray-100 p-4">
+        <div class="text-xs text-gray-400 mb-1">Opportunities</div>
+        <div class="text-2xl font-bold text-gray-900" id="stat-count">—</div>
+      </div>
+      <div class="bg-white rounded-xl border border-gray-100 p-4">
+        <div class="text-xs text-gray-400 mb-1">Best APY</div>
+        <div class="text-2xl font-bold text-indigo-600 mono" id="stat-best-apy">—</div>
+      </div>
+      <div class="bg-white rounded-xl border border-gray-100 p-4">
+        <div class="text-xs text-gray-400 mb-1">Avg Score</div>
+        <div class="text-2xl font-bold text-gray-900" id="stat-avg-score">—</div>
+      </div>
+      <div class="bg-white rounded-xl border border-gray-100 p-4">
+        <div class="text-xs text-gray-400 mb-1">Total TVL</div>
+        <div class="text-2xl font-bold text-gray-900 mono" id="stat-total-tvl">—</div>
+      </div>
+    </div>
+
+    <!-- Cards grid -->
+    <div id="cards-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+      <!-- Populated by JS -->
+      <div class="col-span-full flex items-center justify-center py-20 text-gray-400 text-sm" id="loading-msg">
+        Fetching yield opportunities…
+      </div>
+    </div>
+
+    <!-- Error state -->
+    <div id="error-msg" class="hidden col-span-full text-center py-12 text-red-400 text-sm"></div>
+
+    <!-- Footer -->
+    <footer class="mt-12 pt-6 border-t border-gray-100 text-xs text-gray-400 flex justify-between items-center">
+      <span>Data: DefiLlama · Normalized via opportunity schema</span>
+      <span id="footer-fetched-at"></span>
+    </footer>
+  </main>
+
+  <script>
+    // ─────────────────────────────────────
+    // State
+    // ─────────────────────────────────────
+    let allOpportunities = [];
+    let riskFreeRate = 0.04;
+    let activeChainFilter = 'all';
+    let refreshInterval;
+    let countdownInterval;
+    let countdownSeconds = 60;
+
+    // ─────────────────────────────────────
+    // Fetch
+    // ─────────────────────────────────────
+    async function fetchOpportunities() {
+      setStatus('loading');
+      try {
+        const res = await fetch('/api/opportunities');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'API error');
+
+        allOpportunities = data.opportunities || [];
+        riskFreeRate = data.risk_free_rate || 0.04;
+
+        document.getElementById('risk-free-rate').textContent =
+          (riskFreeRate * 100).toFixed(2) + '%';
+        document.getElementById('footer-fetched-at').textContent =
+          'Last fetched: ' + new Date(data.fetched_at).toLocaleTimeString();
+
+        applyFiltersAndSort();
+        setStatus('ok');
+        resetCountdown();
+      } catch (e) {
+        setStatus('error', e.message);
+        document.getElementById('error-msg').textContent = 'Error: ' + e.message;
+        document.getElementById('error-msg').classList.remove('hidden');
+      }
+    }
+
+    // ─────────────────────────────────────
+    // Filter + Sort
+    // ─────────────────────────────────────
+    function setChainFilter(chain) {
+      activeChainFilter = chain;
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('active-filter', 'bg-indigo-600', 'text-white', 'border-indigo-600');
+        btn.classList.add('text-gray-600', 'border-gray-200');
+      });
+      const activeBtn = document.getElementById('filter-' + chain);
+      if (activeBtn) {
+        activeBtn.classList.add('active-filter', 'bg-indigo-600', 'text-white', 'border-indigo-600');
+        activeBtn.classList.remove('text-gray-600', 'border-gray-200');
+      }
+      applyFiltersAndSort();
+    }
+
+    function applyFiltersAndSort() {
+      let filtered = allOpportunities;
+
+      if (activeChainFilter !== 'all') {
+        filtered = filtered.filter(o => o.chain === activeChainFilter);
+      }
+
+      const sortBy = document.getElementById('sort-select').value;
+      filtered = [...filtered].sort((a, b) => {
+        if (sortBy === 'apy') return b.apy - a.apy;
+        if (sortBy === 'tvl') return b.tvl_usd - a.tvl_usd;
+        return b.score - a.score;  // default
+      });
+
+      renderCards(filtered);
+      renderStats(filtered);
+    }
+
+    // ─────────────────────────────────────
+    // Render
+    // ─────────────────────────────────────
+    function renderStats(opps) {
+      document.getElementById('stat-count').textContent = opps.length;
+
+      if (opps.length === 0) {
+        document.getElementById('stat-best-apy').textContent = '—';
+        document.getElementById('stat-avg-score').textContent = '—';
+        document.getElementById('stat-total-tvl').textContent = '—';
+        return;
+      }
+
+      const bestApy = Math.max(...opps.map(o => o.apy));
+      const avgScore = opps.reduce((s, o) => s + o.score, 0) / opps.length;
+      const totalTvl = opps.reduce((s, o) => s + o.tvl_usd, 0);
+
+      document.getElementById('stat-best-apy').textContent = fmtPct(bestApy);
+      document.getElementById('stat-avg-score').textContent = avgScore.toFixed(1);
+      document.getElementById('stat-total-tvl').textContent = fmtTvl(totalTvl);
+    }
+
+    function renderCards(opps) {
+      const grid = document.getElementById('cards-grid');
+      document.getElementById('loading-msg').classList.add('hidden');
+      document.getElementById('error-msg').classList.add('hidden');
+
+      if (opps.length === 0) {
+        grid.innerHTML = `
+          <div class="col-span-full flex items-center justify-center py-20 text-gray-400 text-sm">
+            No opportunities match your filters.
+          </div>`;
+        return;
+      }
+
+      grid.innerHTML = opps.map(renderCard).join('');
+    }
+
+    function renderCard(o) {
+      const rm = o.reward_mix;
+      const sb = o.score_breakdown;
+      const excessPct = ((o.apy - riskFreeRate) * 100).toFixed(2);
+      const excessLabel = excessPct >= 0
+        ? `+${excessPct}% vs risk-free`
+        : `${excessPct}% vs risk-free`;
+
+      const riskClass = {
+        low: 'risk-low',
+        medium: 'risk-medium',
+        high: 'risk-high',
+        speculative: 'risk-speculative',
+      }[o.risk_tier] || 'risk-speculative';
+
+      const riskLabel = {
+        low: 'Low Risk',
+        medium: 'Medium',
+        high: 'High Risk',
+        speculative: 'Speculative',
+      }[o.risk_tier] || o.risk_tier;
+
+      const scoreColor = o.score >= 75 ? 'bg-emerald-500'
+        : o.score >= 50 ? 'bg-amber-400'
+        : o.score >= 25 ? 'bg-orange-400'
+        : 'bg-red-400';
+
+      const rewardFraction = rm.reward_fraction;
+      const rewardWarning = rewardFraction > 0.5
+        ? `<span class="text-amber-600 text-xs">⚠ ${Math.round(rewardFraction * 100)}% from reward tokens</span>`
+        : '';
+
+      const confidenceIcon = {
+        high: '🟢',
+        medium: '🟡',
+        low: '🔴',
+      }[o.source_confidence] || '⚪';
+
+      const subScoreBar = (label, val) => `
+        <div class="flex items-center gap-2 text-xs">
+          <span class="text-gray-400 w-28 shrink-0">${label}</span>
+          <div class="flex-1 bg-gray-100 rounded-full h-1.5">
+            <div class="score-bar-fill h-1.5 rounded-full bg-indigo-400" style="width:${val * 10}%"></div>
+          </div>
+          <span class="mono text-gray-500 w-6 text-right">${val.toFixed(1)}</span>
+        </div>`;
+
+      return `
+        <div class="card-hover bg-white rounded-2xl border border-gray-100 p-5 flex flex-col gap-4">
+
+          <!-- Top row: protocol + risk tier -->
+          <div class="flex items-start justify-between">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="font-semibold text-gray-900">${o.protocol_display}</span>
+                <span class="text-xs text-gray-400">${o.chain}</span>
+              </div>
+              <div class="mono text-lg font-bold text-gray-900 mt-0.5">${o.asset}</div>
+              <div class="text-xs text-gray-400 mt-0.5">${o.pool_meta}</div>
+            </div>
+            <span class="text-xs font-medium px-2.5 py-1 rounded-full ${riskClass}">${riskLabel}</span>
+          </div>
+
+          <!-- APY block -->
+          <div class="bg-gray-50 rounded-xl p-3">
+            <div class="flex items-end justify-between">
+              <div>
+                <div class="text-xs text-gray-400 mb-1">Total APY</div>
+                <div class="mono text-3xl font-bold text-indigo-600">${fmtPct(o.apy)}</div>
+              </div>
+              <div class="text-right text-xs">
+                <div class="text-gray-400">Base: <span class="mono text-gray-600 font-medium">${fmtPct(rm.base_apy)}</span></div>
+                <div class="text-gray-400">Reward: <span class="mono text-gray-600 font-medium">${fmtPct(rm.reward_apy)}</span></div>
+                <div class="mt-1 text-gray-400">${excessLabel}</div>
+              </div>
+            </div>
+            <!-- Reward mix bar -->
+            <div class="mt-3">
+              <div class="flex items-center gap-1 text-xs text-gray-400 mb-1">
+                <span>Reward mix</span>
+                ${rewardWarning}
+              </div>
+              <div class="h-2 bg-gray-200 rounded-full overflow-hidden flex">
+                <div class="bg-indigo-500 h-full" style="width:${(1 - rewardFraction) * 100}%" title="Base APY"></div>
+                <div class="bg-amber-400 h-full" style="width:${rewardFraction * 100}%" title="Reward APY"></div>
+              </div>
+              <div class="flex justify-between text-xs text-gray-400 mt-1">
+                <span>Base ${Math.round((1 - rewardFraction) * 100)}%</span>
+                <span>Reward ${Math.round(rewardFraction * 100)}%</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Score -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-medium text-gray-500">Composite Score</span>
+              <span class="mono font-bold text-gray-900">${o.score.toFixed(1)}<span class="text-gray-400 font-normal">/100</span></span>
+            </div>
+            <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div class="score-bar-fill h-full rounded-full ${scoreColor}" style="width:${o.score}%"></div>
+            </div>
+          </div>
+
+          <!-- Sub-scores (collapsible) -->
+          <details class="group">
+            <summary class="text-xs text-gray-400 cursor-pointer select-none list-none flex items-center gap-1 hover:text-gray-600">
+              <span class="group-open:hidden">▶</span>
+              <span class="hidden group-open:inline">▼</span>
+              Score breakdown
+            </summary>
+            <div class="mt-3 flex flex-col gap-2">
+              ${subScoreBar('TVL', sb.tvl_score)}
+              ${subScoreBar('Protocol', sb.protocol_score)}
+              ${subScoreBar('Chain', sb.chain_score)}
+              ${subScoreBar('Yield', sb.yield_score)}
+              ${subScoreBar('Reward stability', sb.reward_stability_score)}
+              ${subScoreBar('Data confidence', sb.confidence_score)}
+            </div>
+          </details>
+
+          <!-- Bottom row: TVL + source -->
+          <div class="flex items-center justify-between text-xs text-gray-400 pt-1 border-t border-gray-50">
+            <span>TVL: <span class="mono font-medium text-gray-600">${fmtTvl(o.tvl_usd)}</span></span>
+            <span>${confidenceIcon} ${o.source} · ${o.source_confidence} confidence</span>
+          </div>
+
+          <!-- Link -->
+          <a href="${o.url}" target="_blank" rel="noopener"
+             class="text-xs text-indigo-500 hover:text-indigo-700 text-center block -mt-2">
+            View on DefiLlama ↗
+          </a>
+        </div>`;
+    }
+
+    // ─────────────────────────────────────
+    // Formatters
+    // ─────────────────────────────────────
+    function fmtPct(val) {
+      if (val === null || val === undefined) return '—';
+      return (val * 100).toFixed(2) + '%';
+    }
+
+    function fmtTvl(val) {
+      if (!val) return '—';
+      if (val >= 1e9) return '$' + (val / 1e9).toFixed(2) + 'B';
+      if (val >= 1e6) return '$' + (val / 1e6).toFixed(1) + 'M';
+      if (val >= 1e3) return '$' + (val / 1e3).toFixed(0) + 'K';
+      return '$' + val.toFixed(0);
+    }
+
+    // ─────────────────────────────────────
+    // Status
+    // ─────────────────────────────────────
+    function setStatus(state, msg) {
+      const dot = document.getElementById('status-dot');
+      const text = document.getElementById('status-text');
+      if (state === 'ok') {
+        dot.className = 'pulse-dot bg-emerald-400';
+        text.textContent = 'Live';
+      } else if (state === 'loading') {
+        dot.className = 'pulse-dot bg-amber-400';
+        text.textContent = 'Refreshing…';
+      } else {
+        dot.className = 'pulse-dot bg-red-400';
+        text.textContent = 'Error';
+      }
+    }
+
+    // ─────────────────────────────────────
+    // Countdown
+    // ─────────────────────────────────────
+    function resetCountdown() {
+      countdownSeconds = 60;
+      if (countdownInterval) clearInterval(countdownInterval);
+      countdownInterval = setInterval(() => {
+        countdownSeconds -= 1;
+        document.getElementById('countdown').textContent = countdownSeconds + 's';
+        document.getElementById('countdown-bar').style.width =
+          (countdownSeconds / 60 * 100) + '%';
+        if (countdownSeconds <= 0) {
+          clearInterval(countdownInterval);
+        }
+      }, 1000);
+    }
+
+    // ─────────────────────────────────────
+    // Init
+    // ─────────────────────────────────────
+    setChainFilter('all');
+    fetchOpportunities();
+    setInterval(fetchOpportunities, 60_000);
+  </script>
+</body>
+</html>
